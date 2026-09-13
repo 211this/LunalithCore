@@ -45,6 +45,7 @@ final class SecurityHardeningTests: XCTestCase {
             statement: "Known meaning",
             significance: 0.5,
             confidence: 0.5,
+            emotionalValence: 0,
             status: .active,
             provenance: .conversation,
             epistemicStatus: .inferred
