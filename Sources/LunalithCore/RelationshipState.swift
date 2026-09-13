@@ -48,15 +48,15 @@ public struct LunalithRelationshipState: Codable, Equatable, Sendable {
     }
 
     public mutating func apply(_ delta: LunalithRelationshipDelta, at timestamp: Date = Date()) {
-        rapport = (rapport + delta.rapport).lunalithClamped01
-        trust = (trust + delta.trust).lunalithClamped01
-        playfulness = (playfulness + delta.playfulness).lunalithClamped01
-        friction = (friction + delta.friction).lunalithClamped01
-        repair = (repair + delta.repair).lunalithClamped01
-        novelty = (novelty + delta.novelty).lunalithClamped01
-        momentum = (momentum + delta.momentum).lunalithClamped01
-        uncertainty = (uncertainty + delta.uncertainty).lunalithClamped01
-        engagement = (engagement + delta.engagement).lunalithClamped01
+        rapport = (rapport + delta.rapport.lunalithFiniteOrZero).lunalithClamped01
+        trust = (trust + delta.trust.lunalithFiniteOrZero).lunalithClamped01
+        playfulness = (playfulness + delta.playfulness.lunalithFiniteOrZero).lunalithClamped01
+        friction = (friction + delta.friction.lunalithFiniteOrZero).lunalithClamped01
+        repair = (repair + delta.repair.lunalithFiniteOrZero).lunalithClamped01
+        novelty = (novelty + delta.novelty.lunalithFiniteOrZero).lunalithClamped01
+        momentum = (momentum + delta.momentum.lunalithFiniteOrZero).lunalithClamped01
+        uncertainty = (uncertainty + delta.uncertainty.lunalithFiniteOrZero).lunalithClamped01
+        engagement = (engagement + delta.engagement.lunalithFiniteOrZero).lunalithClamped01
         interactionCount += 1
         lastUpdated = timestamp
     }

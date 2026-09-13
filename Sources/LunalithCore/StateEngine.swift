@@ -160,7 +160,8 @@ public struct LunalithStateEngine: Sendable {
             "what", "when", "where", "which", "with", "you", "your"
         ]
         var counts: [String: Int] = [:]
-        for token in LunalithText.words(text) where !stopWords.contains(token) {
+        let boundedText = String(text.prefix(LunalithSafetyLimits.standard.maximumTextCharacters))
+        for token in LunalithText.words(boundedText) where !stopWords.contains(token) {
             counts[token, default: 0] += 1
         }
         return counts.sorted {
