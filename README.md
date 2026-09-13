@@ -66,7 +66,7 @@ Do not present inferred records as direct observations. Do not convert missing c
 
 ## Current status
 
-Pre-release reference implementation. The package must be compiled and tested in Xcode before any public release because its construction environment did not contain a Swift toolchain.
+Pre-release reference implementation. On 2026-09-13, the package built successfully in Xcode and its complete XCTest suite passed on macOS. GitHub Actions also runs the package tests on every push and pull request to `main`. Public release remains gated by `RELEASE_CHECKLIST.md`.
 
 ## License status
 
