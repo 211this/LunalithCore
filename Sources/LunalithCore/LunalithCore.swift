@@ -65,7 +65,12 @@ public actor LunalithCore {
 
     @discardableResult
     public func remember(_ memory: LunalithMemory) -> Bool {
-        guard !memory.content.isEmpty else { return false }
+        let limits = LunalithSafetyLimits.standard
+        guard !memory.content.isEmpty,
+              memory.content.count <= limits.maximumTextCharacters,
+              memory.tags.count <= limits.maximumRecordsPerCollection,
+              memory.tags.allSatisfy({ $0.count <= limits.maximumTextCharacters }),
+              snapshot.memories.count < limits.maximumRecordsPerCollection else { return false }
         if let index = snapshot.memories.firstIndex(where: { $0.id == memory.id }) {
             snapshot.memories[index] = memory
             return false
@@ -105,7 +110,13 @@ public actor LunalithCore {
         snapshot.meaningGraph.deleteMeanings(withIDs: ids)
     }
 
-    public func replaceSnapshot(_ snapshot: LunalithSnapshot) {
+    public func replaceSnapshot(_ snapshot: LunalithSnapshot) throws {
+        try snapshot.validate()
         self.snapshot = snapshot
+    }
+
+    public func replaceTurnLedger(_ turnLedger: LunalithTurnLedger) throws {
+        try turnLedger.validate()
+        self.turnLedger = turnLedger
     }
 }

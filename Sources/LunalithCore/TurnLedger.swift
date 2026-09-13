@@ -37,9 +37,28 @@ public struct LunalithTurnLedger: Codable, Equatable, Sendable {
         self.failed = failed
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case queued
+        case active
+        case failed
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            queued: try container.decodeIfPresent([LunalithTurn].self, forKey: .queued) ?? [],
+            active: try container.decodeIfPresent(LunalithTurn.self, forKey: .active),
+            failed: try container.decodeIfPresent(LunalithTurn.self, forKey: .failed)
+        )
+        try validate()
+    }
+
     @discardableResult
     public mutating func submit(_ turn: LunalithTurn) -> Bool {
-        guard !turn.message.isEmpty else { return false }
+        let limits = LunalithSafetyLimits.standard
+        guard !turn.message.isEmpty,
+              turn.message.count <= limits.maximumTextCharacters,
+              queued.count < limits.maximumRecordsPerCollection else { return false }
         queued.append(turn)
         return true
     }
@@ -86,5 +105,31 @@ public struct LunalithTurnLedger: Codable, Equatable, Sendable {
         let id = failed?.id
         failed = nil
         return id
+    }
+
+    public func validate(limits: LunalithSafetyLimits = .standard) throws {
+        guard !(active != nil && failed != nil) else {
+            throw LunalithValidationError.invalidTurnLedger("active and failed turns coexist")
+        }
+        let turns = queued + [active, failed].compactMap { $0 }
+        guard turns.count <= limits.maximumRecordsPerCollection else {
+            throw LunalithValidationError.tooManyRecords("turns")
+        }
+        guard turns.allSatisfy({ !$0.message.isEmpty }) else {
+            throw LunalithValidationError.emptyText("turn")
+        }
+        guard turns.allSatisfy({ $0.message.count <= limits.maximumTextCharacters }) else {
+            throw LunalithValidationError.textTooLong("turn")
+        }
+        guard Set(turns.map(\.id)).count == turns.count else {
+            throw LunalithValidationError.duplicateIdentifier("turn")
+        }
+        if let failed {
+            guard !failed.shouldProcessState,
+                  !failed.shouldJournalUserRecord,
+                  !failed.shouldRouteNaturalFeedback else {
+                throw LunalithValidationError.invalidTurnLedger("failed turn can repeat side effects")
+            }
+        }
     }
 }

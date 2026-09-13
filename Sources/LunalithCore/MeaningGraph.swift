@@ -132,7 +132,10 @@ public struct LunalithMeaningGraph: Codable, Equatable, Sendable {
         at timestamp: Date = Date()
     ) -> UUID? {
         let clean = statement.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { return nil }
+        let limits = LunalithSafetyLimits.standard
+        guard !clean.isEmpty,
+              clean.count <= limits.maximumTextCharacters,
+              meanings.count < limits.maximumRecordsPerCollection else { return nil }
         let normalized = LunalithText.normalized(clean)
 
         if let index = meanings.firstIndex(where: {
@@ -200,8 +203,11 @@ public struct LunalithMeaningGraph: Codable, Equatable, Sendable {
         at timestamp: Date = Date()
     ) -> UUID? {
         let clean = relationship.trimmingCharacters(in: .whitespacesAndNewlines)
+        let limits = LunalithSafetyLimits.standard
         guard sourceID != targetID,
               !clean.isEmpty,
+              clean.count <= limits.maximumTextCharacters,
+              links.count < limits.maximumRecordsPerCollection,
               meanings.contains(where: { $0.id == sourceID }),
               meanings.contains(where: { $0.id == targetID }) else { return nil }
 
@@ -239,6 +245,9 @@ public struct LunalithMeaningGraph: Codable, Equatable, Sendable {
         revisionID: UUID = UUID(),
         at timestamp: Date = Date()
     ) -> UUID? {
+        let limits = LunalithSafetyLimits.standard
+        guard reason.count <= limits.maximumTextCharacters,
+              revisions.count < limits.maximumRecordsPerCollection else { return nil }
         guard let index = meanings.firstIndex(where: { $0.id == originalID }) else { return nil }
         let original = meanings[index]
         let oldStatus = meanings[index].status

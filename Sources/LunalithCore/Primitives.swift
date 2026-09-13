@@ -16,6 +16,35 @@ public enum LunalithProvenance: String, Codable, Sendable, CaseIterable {
     case imported
 }
 
+public struct LunalithSafetyLimits: Codable, Equatable, Sendable {
+    public var maximumTextCharacters: Int
+    public var maximumRecordsPerCollection: Int
+    public var maximumContextCharacters: Int
+
+    public init(
+        maximumTextCharacters: Int = 32_768,
+        maximumRecordsPerCollection: Int = 10_000,
+        maximumContextCharacters: Int = 64_000
+    ) {
+        self.maximumTextCharacters = max(1, maximumTextCharacters)
+        self.maximumRecordsPerCollection = max(1, maximumRecordsPerCollection)
+        self.maximumContextCharacters = max(1, maximumContextCharacters)
+    }
+
+    public static let standard = LunalithSafetyLimits()
+}
+
+public enum LunalithValidationError: Error, Equatable, Sendable {
+    case nonFiniteValue(String)
+    case valueOutOfRange(String)
+    case emptyText(String)
+    case textTooLong(String)
+    case tooManyRecords(String)
+    case duplicateIdentifier(String)
+    case danglingReference(String)
+    case invalidTurnLedger(String)
+}
+
 enum LunalithText {
     static func normalized(_ content: String) -> String {
         var normalized = content
@@ -59,6 +88,7 @@ enum LunalithText {
 }
 
 extension Double {
-    var lunalithClamped01: Double { min(1, max(0, self)) }
-    var lunalithClampedSigned: Double { min(1, max(-1, self)) }
+    var lunalithFiniteOrZero: Double { isFinite ? self : 0 }
+    var lunalithClamped01: Double { min(1, max(0, lunalithFiniteOrZero)) }
+    var lunalithClampedSigned: Double { min(1, max(-1, lunalithFiniteOrZero)) }
 }

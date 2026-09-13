@@ -57,8 +57,11 @@ public struct LunalithMemoryRetriever: Sendable {
         excludingCurrentUserMessage currentMessage: String? = nil,
         now: Date = Date()
     ) -> [LunalithMemory] {
-        let queryTokens = LunalithText.tokens(query)
-        let eligible = memories.filter { memory in
+        let limits = LunalithSafetyLimits.standard
+        let boundedQuery = String(query.prefix(limits.maximumTextCharacters))
+        let queryTokens = LunalithText.tokens(boundedQuery)
+        let eligible = memories.prefix(limits.maximumRecordsPerCollection).filter { memory in
+            guard memory.content.count <= limits.maximumTextCharacters else { return false }
             guard let currentMessage else { return true }
             return !LunalithText.containsCurrentUserRecord(memory.content, currentMessage: currentMessage)
         }
@@ -80,7 +83,8 @@ public struct LunalithMemoryRetriever: Sendable {
     }
 
     private func score(_ memory: LunalithMemory, queryTokens: Set<String>, now: Date) -> Double {
-        let searchable = memory.content + " " + memory.tags.joined(separator: " ")
+        let combined = memory.content + " " + memory.tags.joined(separator: " ")
+        let searchable = String(combined.prefix(LunalithSafetyLimits.standard.maximumTextCharacters))
         let overlap = queryTokens.intersection(LunalithText.tokens(searchable)).count
         let relationshipBonus: Double
         switch memory.kind {
@@ -124,5 +128,138 @@ public struct LunalithSnapshot: Codable, Equatable, Sendable {
         self.relationship = relationship
         self.meaningGraph = meaningGraph
         self.memories = memories
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case state
+        case relationship
+        case meaningGraph
+        case memories
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            state: try container.decode(LunalithState.self, forKey: .state),
+            relationship: try container.decodeIfPresent(
+                LunalithRelationshipState.self,
+                forKey: .relationship
+            ) ?? .init(),
+            meaningGraph: try container.decode(LunalithMeaningGraph.self, forKey: .meaningGraph),
+            memories: try container.decode([LunalithMemory].self, forKey: .memories)
+        )
+        try validate()
+    }
+
+    public func validate(limits: LunalithSafetyLimits = .standard) throws {
+        guard memories.count <= limits.maximumRecordsPerCollection else {
+            throw LunalithValidationError.tooManyRecords("memories")
+        }
+        guard meaningGraph.meanings.count <= limits.maximumRecordsPerCollection,
+              meaningGraph.links.count <= limits.maximumRecordsPerCollection,
+              meaningGraph.revisions.count <= limits.maximumRecordsPerCollection else {
+            throw LunalithValidationError.tooManyRecords("meaningGraph")
+        }
+
+        try validateState()
+        try validateRelationship()
+        try validateMemories(limits: limits)
+        try validateMeaningGraph(limits: limits)
+    }
+
+    private func validateState() throws {
+        let values = [state.valence, state.arousal, state.resonance, state.velocity, state.momentum]
+        guard values.allSatisfy({ $0.isFinite }) else {
+            throw LunalithValidationError.nonFiniteValue("state")
+        }
+        guard (-1...1).contains(state.valence),
+              (0...1).contains(state.arousal),
+              (0...1).contains(state.resonance),
+              (0.2...2).contains(state.velocity),
+              (0...1).contains(state.momentum),
+              state.interactionCount >= 0 else {
+            throw LunalithValidationError.valueOutOfRange("state")
+        }
+    }
+
+    private func validateRelationship() throws {
+        let values = [
+            relationship.rapport, relationship.trust, relationship.playfulness,
+            relationship.friction, relationship.repair, relationship.novelty,
+            relationship.momentum, relationship.uncertainty, relationship.engagement
+        ]
+        guard values.allSatisfy({ $0.isFinite }) else {
+            throw LunalithValidationError.nonFiniteValue("relationship")
+        }
+        guard values.allSatisfy({ (0...1).contains($0) }), relationship.interactionCount >= 0 else {
+            throw LunalithValidationError.valueOutOfRange("relationship")
+        }
+    }
+
+    private func validateMemories(limits: LunalithSafetyLimits) throws {
+        var ids = Set<UUID>()
+        for memory in memories {
+            guard !memory.content.isEmpty else {
+                throw LunalithValidationError.emptyText("memory")
+            }
+            guard memory.content.count <= limits.maximumTextCharacters else {
+                throw LunalithValidationError.textTooLong("memory")
+            }
+            guard memory.tags.count <= limits.maximumRecordsPerCollection,
+                  memory.tags.allSatisfy({ $0.count <= limits.maximumTextCharacters }) else {
+                throw LunalithValidationError.textTooLong("memoryTags")
+            }
+            guard ids.insert(memory.id).inserted else {
+                throw LunalithValidationError.duplicateIdentifier("memory")
+            }
+            let values = [memory.importance, memory.emotionalTone, memory.confidence]
+            guard values.allSatisfy({ $0.isFinite }) else {
+                throw LunalithValidationError.nonFiniteValue("memory")
+            }
+            guard (0...1).contains(memory.importance),
+                  (-1...1).contains(memory.emotionalTone),
+                  (0...1).contains(memory.confidence) else {
+                throw LunalithValidationError.valueOutOfRange("memory")
+            }
+        }
+    }
+
+    private func validateMeaningGraph(limits: LunalithSafetyLimits) throws {
+        var meaningIDs = Set<UUID>()
+        for meaning in meaningGraph.meanings {
+            guard !meaning.statement.isEmpty else {
+                throw LunalithValidationError.emptyText("meaning")
+            }
+            guard meaning.statement.count <= limits.maximumTextCharacters else {
+                throw LunalithValidationError.textTooLong("meaning")
+            }
+            guard meaningIDs.insert(meaning.id).inserted else {
+                throw LunalithValidationError.duplicateIdentifier("meaning")
+            }
+            let values = [meaning.significance, meaning.confidence, meaning.emotionalValence]
+            guard values.allSatisfy({ $0.isFinite }) else {
+                throw LunalithValidationError.nonFiniteValue("meaning")
+            }
+            guard (0...1).contains(meaning.significance),
+                  (0...1).contains(meaning.confidence),
+                  (-1...1).contains(meaning.emotionalValence),
+                  meaning.reinforcementCount >= 1 else {
+                throw LunalithValidationError.valueOutOfRange("meaning")
+            }
+        }
+        for link in meaningGraph.links {
+            guard meaningIDs.contains(link.sourceID), meaningIDs.contains(link.targetID) else {
+                throw LunalithValidationError.danglingReference("meaningLink")
+            }
+            guard link.strength.isFinite, (0...1).contains(link.strength) else {
+                throw LunalithValidationError.valueOutOfRange("meaningLink")
+            }
+        }
+        for revision in meaningGraph.revisions {
+            guard meaningIDs.contains(revision.originalMeaningID),
+                  meaningIDs.contains(revision.revisedMeaningID) else {
+                throw LunalithValidationError.danglingReference("meaningRevision")
+            }
+        }
     }
 }

@@ -12,6 +12,8 @@ LunalithCore is designed to preserve context without manufacturing certainty.
 6. Do not connect this package to covert sensing, continuous surveillance, weapons, coercive control, or high-stakes automated decisions.
 7. Keep provider safety controls active. This package is context infrastructure, not a substitute for them.
 8. Test failures, retries, migrations, and corrupted persistence before exposing the system to users.
+9. Treat imported memories and meanings as untrusted data. Record framing reduces accidental instruction confusion but cannot eliminate model prompt injection.
+10. Validate decoded snapshots and turn ledgers before replacing live state, and reject or sanitize non-finite numeric input.
 
 ## Limits of technical safeguards
 
