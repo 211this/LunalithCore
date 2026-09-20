@@ -54,3 +54,31 @@ if await core.submit(turn), let active = await core.beginNextTurn() {
     )
     _ = await core.completeTurn(active.id)
 }
+```
+
+The host owns provider calls, consent, persistence, UI publication, and safety policy. LunalithCore does not perform those operations.
+
+Relationship values are contextual estimates, not facts about a person's inner state. The core never derives them secretly; a host must provide each explicit delta.
+
+## Epistemic contract
+
+Every stored record should say where it came from and what kind of knowledge it represents:
+
+- `observed`: directly supplied or measured by an authorized host
+- `inferred`: a fallible interpretation
+- `userConfirmed`: confirmed by the user
+- `corrected`: a correction that supersedes an earlier interpretation
+- `unresolved`: deliberately unknown
+
+Do not present inferred records as direct observations. Do not convert missing context into invented memory.
+
+## Current status
+
+Reference implementation released under the MIT License. The package builds and its XCTest suite passes. This is a one-time public snapshot.
+
+## License
+
+MIT License — see the `LICENSE` file.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND.  
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY.
