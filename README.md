@@ -4,6 +4,14 @@ LunalithCore is a provider-neutral Swift reference implementation for emotionall
 
 It is not a model, a claim of consciousness, or a turnkey assistant. It is an orchestration algorithm that gives a host application deterministic state transitions, provenance-aware meaning, memory retrieval, retry-safe turn ordering, and budgeted context assembly.
 
+## Important Notice
+
+This is a one-time public release of the core architecture.  
+It is provided **AS IS** under the MIT License, without warranty of any kind.  
+The author accepts no responsibility for how it is used, integrated, or modified.  
+No support, maintenance, or future updates are promised or implied.  
+Use at your own risk.
+
 ## Why this exists
 
 Humans are imperfect. We contradict ourselves, revise our understanding, speak emotionally, and repair mistakes. An interaction system should preserve context without turning every sentence into permanent truth. LunalithCore represents uncertainty, correction, provenance, and continuity directly.
@@ -46,28 +54,3 @@ if await core.submit(turn), let active = await core.beginNextTurn() {
     )
     _ = await core.completeTurn(active.id)
 }
-```
-
-The host owns provider calls, consent, persistence, UI publication, and safety policy. LunalithCore does not perform those operations.
-
-Relationship values are contextual estimates, not facts about a person's inner state. The core never derives them secretly; a host must provide each explicit delta.
-
-## Epistemic contract
-
-Every stored record should say where it came from and what kind of knowledge it represents:
-
-- `observed`: directly supplied or measured by an authorized host
-- `inferred`: a fallible interpretation
-- `userConfirmed`: confirmed by the user
-- `corrected`: a correction that supersedes an earlier interpretation
-- `unresolved`: deliberately unknown
-
-Do not present inferred records as direct observations. Do not convert missing context into invented memory.
-
-## Current status
-
-Pre-release reference implementation. On 2026-09-13, the package built successfully in Xcode and its complete XCTest suite passed on macOS. GitHub Actions also runs the package tests on every push and pull request to `main`. Public release remains gated by `RELEASE_CHECKLIST.md`.
-
-## License status
-
-No license has been granted yet. All rights are reserved until the creator deliberately selects and adds a license. See `RELEASE_CHECKLIST.md` before publishing.
