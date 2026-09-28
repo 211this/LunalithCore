@@ -87,6 +87,7 @@ public actor LunalithCore {
         for query: String,
         limit: Int = 8,
         excludingCurrentUserMessage currentMessage: String? = nil,
+        requireOverlap: Bool = true,
         now: Date = Date()
     ) -> [LunalithMemory] {
         memoryRetriever.retrieve(
@@ -94,6 +95,7 @@ public actor LunalithCore {
             from: snapshot.memories,
             limit: limit,
             excludingCurrentUserMessage: currentMessage,
+            requireOverlap: requireOverlap,
             now: now
         )
     }

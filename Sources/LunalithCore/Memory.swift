@@ -55,6 +55,7 @@ public struct LunalithMemoryRetriever: Sendable {
         from memories: [LunalithMemory],
         limit: Int = 8,
         excludingCurrentUserMessage currentMessage: String? = nil,
+        requireOverlap: Bool = true,
         now: Date = Date()
     ) -> [LunalithMemory] {
         let limits = LunalithSafetyLimits.standard
@@ -66,7 +67,11 @@ public struct LunalithMemoryRetriever: Sendable {
             return !LunalithText.containsCurrentUserRecord(memory.content, currentMessage: currentMessage)
         }
 
+        // Importance and recency alone never qualify a record: without shared words,
+        // unrelated memories would be injected into every prompt.
+        let mustOverlap = requireOverlap && !queryTokens.isEmpty
         return eligible
+            .filter { !mustOverlap || overlap($0, queryTokens: queryTokens) > 0 }
             .map { ($0, score($0, queryTokens: queryTokens, now: now)) }
             .filter { $0.1 > 0 }
             .sorted {
@@ -82,10 +87,14 @@ public struct LunalithMemoryRetriever: Sendable {
             .map(\.0)
     }
 
-    private func score(_ memory: LunalithMemory, queryTokens: Set<String>, now: Date) -> Double {
+    private func overlap(_ memory: LunalithMemory, queryTokens: Set<String>) -> Int {
         let combined = memory.content + " " + memory.tags.joined(separator: " ")
         let searchable = String(combined.prefix(LunalithSafetyLimits.standard.maximumTextCharacters))
-        let overlap = queryTokens.intersection(LunalithText.tokens(searchable)).count
+        return queryTokens.intersection(LunalithText.tokens(searchable)).count
+    }
+
+    private func score(_ memory: LunalithMemory, queryTokens: Set<String>, now: Date) -> Double {
+        let sharedWords = overlap(memory, queryTokens: queryTokens)
         let relationshipBonus: Double
         switch memory.kind {
         case .relationship, .decision, .correction, .milestone:
@@ -94,7 +103,7 @@ public struct LunalithMemoryRetriever: Sendable {
             relationshipBonus = 0
         }
 
-        return Double(overlap)
+        return Double(sharedWords)
             + memory.importance * 2
             + memory.confidence * 0.5
             + recencyWeight(memory.createdAt, now: now)

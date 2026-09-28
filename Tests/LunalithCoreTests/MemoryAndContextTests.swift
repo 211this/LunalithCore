@@ -12,7 +12,7 @@ final class MemoryAndContextTests: XCTestCase {
         )
         let eligible = LunalithMemory(
             kind: .relationship,
-            content: "Continuity should preserve corrections.",
+            content: "Remember that continuity should preserve corrections.",
             provenance: .userStatement,
             epistemicStatus: .userConfirmed
         )
@@ -25,6 +25,34 @@ final class MemoryAndContextTests: XCTestCase {
 
         XCTAssertFalse(result.contains(where: { $0.id == contaminated.id }))
         XCTAssertTrue(result.contains(where: { $0.id == eligible.id }))
+    }
+
+    func testRetrieverIgnoresImportantButUnrelatedMemories() {
+        let unrelated = LunalithMemory(
+            kind: .milestone,
+            content: "Shipped first build.",
+            importance: 1,
+            provenance: .userStatement,
+            epistemicStatus: .userConfirmed
+        )
+        let related = LunalithMemory(
+            kind: .preference,
+            content: "Prefers warm weather walks.",
+            importance: 0.1,
+            provenance: .userStatement,
+            epistemicStatus: .userConfirmed
+        )
+
+        let retriever = LunalithMemoryRetriever()
+        let result = retriever.retrieve(query: "How is the weather?", from: [unrelated, related])
+        XCTAssertEqual(result.map(\.id), [related.id])
+
+        let legacy = retriever.retrieve(
+            query: "How is the weather?",
+            from: [unrelated, related],
+            requireOverlap: false
+        )
+        XCTAssertEqual(legacy.count, 2)
     }
 
     func testBudgetPreservesUserMessageAndNeverSlicesRecords() {

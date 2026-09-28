@@ -51,7 +51,7 @@ enum LunalithText {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
 
         for prefix in ["lunalith:", "user:"] where normalized.hasPrefix(prefix) {
             normalized = String(normalized.dropFirst(prefix.count))
