@@ -25,3 +25,14 @@ jobs:
 
       - name: Run package tests
         run: swift test --parallel
+
+      - name: Build lunalith-context
+        run: swift build -c release --product lunalith-context
+
+      - name: Smoke test lunalith-context
+        run: |
+          first=$(echo '{"message":"I have not slept in three days","timestamp":1000}' | .build/release/lunalith-context)
+          echo "$first" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'SIMULATED STATE' in d['systemContext']; print('turn 1 ok')"
+          echo "$first" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps({'message':'Still have not slept','snapshot':d['snapshot'],'timestamp':1060}))" \
+            | .build/release/lunalith-context \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'User said: I have not slept in three days' in d['systemContext']; print('turn 2 ok')"
