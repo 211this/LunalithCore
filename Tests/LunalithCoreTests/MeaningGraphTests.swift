@@ -74,4 +74,71 @@ final class MeaningGraphTests: XCTestCase {
         XCTAssertFalse(graph.meanings.contains(where: { $0.id == first }))
         XCTAssertTrue(graph.links.isEmpty)
     }
+
+    func testRepeatedInferenceDoesNotRaiseConfidence() {
+        var graph = LunalithMeaningGraph()
+        let id = graph.record(
+            "The user is sad",
+            significance: 0.5,
+            confidence: 0.3,
+            provenance: .conversation,
+            epistemicStatus: .inferred
+        )!
+        for _ in 0..<5 {
+            graph.record(
+                "The user is sad",
+                significance: 0.5,
+                confidence: 0.95,
+                provenance: .conversation,
+                epistemicStatus: .inferred
+            )
+        }
+
+        let meaning = graph.meanings.first(where: { $0.id == id })!
+        XCTAssertEqual(meaning.confidence, 0.3)
+        XCTAssertEqual(meaning.reinforcementCount, 6)
+        XCTAssertEqual(meaning.epistemicStatus, .inferred)
+    }
+
+    func testUserConfirmationCanRaiseConfidence() {
+        var graph = LunalithMeaningGraph()
+        let id = graph.record(
+            "Prefers mornings",
+            significance: 0.5,
+            confidence: 0.3,
+            provenance: .conversation,
+            epistemicStatus: .inferred
+        )!
+        graph.record(
+            "Prefers mornings",
+            significance: 0.5,
+            confidence: 0.9,
+            provenance: .userStatement,
+            epistemicStatus: .userConfirmed
+        )
+
+        let meaning = graph.meanings.first(where: { $0.id == id })!
+        XCTAssertEqual(meaning.confidence, 0.9)
+        XCTAssertEqual(meaning.epistemicStatus, .userConfirmed)
+    }
+
+    func testRevisionKeepsSuppliedProvenance() {
+        var graph = LunalithMeaningGraph()
+        let originalID = graph.record(
+            "The meeting is Monday",
+            significance: 0.6,
+            confidence: 0.5,
+            provenance: .conversation,
+            epistemicStatus: .inferred
+        )!
+
+        let revisedID = graph.revise(
+            originalID,
+            to: "The meeting is Tuesday",
+            reason: "Model self-correction",
+            provenance: .conversation
+        )!
+
+        XCTAssertEqual(graph.meanings.first(where: { $0.id == revisedID })?.provenance, .conversation)
+    }
 }

@@ -65,19 +65,49 @@ public struct LunalithStateConfiguration: Codable, Equatable, Sendable {
     public var resonanceGain: Double
     public var resonanceDecay: Double
     public var momentumRetention: Double
+    /// Resting arousal. Calm input pulls arousal back toward this value.
+    public var baselineArousal: Double
+    /// Seconds for arousal to return halfway to baseline while idle. 0 disables time decay.
+    public var arousalHalfLife: TimeInterval
 
     public init(
         valenceLearningRate: Double = 0.20,
         arousalLearningRate: Double = 0.25,
         resonanceGain: Double = 0.12,
         resonanceDecay: Double = 0.02,
-        momentumRetention: Double = 0.80
+        momentumRetention: Double = 0.80,
+        baselineArousal: Double = 0.40,
+        arousalHalfLife: TimeInterval = 1_800
     ) {
         self.valenceLearningRate = valenceLearningRate.lunalithClamped01
         self.arousalLearningRate = arousalLearningRate.lunalithClamped01
         self.resonanceGain = resonanceGain.lunalithClamped01
         self.resonanceDecay = resonanceDecay.lunalithClamped01
         self.momentumRetention = momentumRetention.lunalithClamped01
+        self.baselineArousal = baselineArousal.lunalithClamped01
+        self.arousalHalfLife = max(0, arousalHalfLife.lunalithFiniteOrZero)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case valenceLearningRate, arousalLearningRate, resonanceGain, resonanceDecay
+        case momentumRetention, baselineArousal, arousalHalfLife
+    }
+
+    /// Decodes configurations saved before homeostasis fields existed.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = LunalithStateConfiguration()
+        self.init(
+            valenceLearningRate: try c.decode(Double.self, forKey: .valenceLearningRate),
+            arousalLearningRate: try c.decode(Double.self, forKey: .arousalLearningRate),
+            resonanceGain: try c.decode(Double.self, forKey: .resonanceGain),
+            resonanceDecay: try c.decode(Double.self, forKey: .resonanceDecay),
+            momentumRetention: try c.decode(Double.self, forKey: .momentumRetention),
+            baselineArousal: try c.decodeIfPresent(Double.self, forKey: .baselineArousal)
+                ?? defaults.baselineArousal,
+            arousalHalfLife: try c.decodeIfPresent(TimeInterval.self, forKey: .arousalHalfLife)
+                ?? defaults.arousalHalfLife
+        )
     }
 }
 
@@ -114,14 +144,20 @@ public struct LunalithStateEngine: Sendable {
     ) -> LunalithTransition {
         let telemetryApplied = input.telemetry?.consentGranted == true
         let telemetryArousal = telemetryApplied ? input.telemetry?.normalizedArousal : nil
-        let targetArousal = max(abs(input.sentiment), telemetryArousal ?? previous.arousal)
+        // Homeostasis: the target falls back to baseline, never to the previous value,
+        // so calm input lowers arousal instead of holding it at its peak.
+        let targetArousal = max(
+            abs(input.sentiment),
+            telemetryArousal ?? configuration.baselineArousal
+        )
+        let restedArousal = decayedArousal(previous, at: timestamp)
         let valenceDelta = input.sentiment - previous.valence
 
         var current = previous
         current.valence = (previous.valence + valenceDelta * configuration.valenceLearningRate)
             .lunalithClampedSigned
         current.arousal = blend(
-            previous.arousal,
+            restedArousal,
             targetArousal,
             rate: configuration.arousalLearningRate
         ).lunalithClamped01
@@ -148,6 +184,16 @@ public struct LunalithStateEngine: Sendable {
             telemetryApplied: telemetryApplied,
             dominantConcept: concept
         )
+    }
+
+    /// Arousal after idle time, decayed toward baseline from timestamps (no timers).
+    func decayedArousal(_ state: LunalithState, at timestamp: Date) -> Double {
+        let halfLife = configuration.arousalHalfLife
+        guard halfLife > 0 else { return state.arousal }
+        let elapsed = max(0, timestamp.timeIntervalSince(state.lastUpdated))
+        let remaining = pow(0.5, elapsed / halfLife)
+        let baseline = configuration.baselineArousal
+        return (baseline + (state.arousal - baseline) * remaining).lunalithClamped01
     }
 
     private func blend(_ current: Double, _ target: Double, rate: Double) -> Double {

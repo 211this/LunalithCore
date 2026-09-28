@@ -142,7 +142,11 @@ public struct LunalithMeaningGraph: Codable, Equatable, Sendable {
             $0.status != .superseded && LunalithText.normalized($0.statement) == normalized
         }) {
             meanings[index].significance = max(meanings[index].significance, significance.lunalithClamped01)
-            meanings[index].confidence = max(meanings[index].confidence, confidence.lunalithClamped01)
+            // Repetition is not evidence. Only observed, confirmed, or corrected input
+            // may raise confidence; repeated inferences just reinforce.
+            if epistemicRank(epistemicStatus) >= epistemicRank(.observed) {
+                meanings[index].confidence = max(meanings[index].confidence, confidence.lunalithClamped01)
+            }
             meanings[index].emotionalValence = (
                 meanings[index].emotionalValence + emotionalValence.lunalithClampedSigned
             ) / 2
@@ -241,6 +245,7 @@ public struct LunalithMeaningGraph: Codable, Equatable, Sendable {
         to revisedStatement: String,
         reason: String,
         confidence: Double = 1,
+        provenance: LunalithProvenance = .userStatement,
         revisedID: UUID = UUID(),
         revisionID: UUID = UUID(),
         at timestamp: Date = Date()
@@ -259,7 +264,7 @@ public struct LunalithMeaningGraph: Codable, Equatable, Sendable {
             significance: original.significance,
             confidence: confidence,
             emotionalValence: original.emotionalValence,
-            provenance: .userStatement,
+            provenance: provenance,
             epistemicStatus: .corrected,
             status: .revised,
             id: revisedID,
@@ -302,7 +307,8 @@ public struct LunalithMeaningGraph: Codable, Equatable, Sendable {
             }
             return nil
         }
-        links.append(contentsOf: inherited)
+        let room = max(0, LunalithSafetyLimits.standard.maximumRecordsPerCollection - links.count)
+        links.append(contentsOf: inherited.prefix(room))
         return newID
     }
 
